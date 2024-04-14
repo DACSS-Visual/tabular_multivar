@@ -17,7 +17,6 @@ _____
 
 3. [Dimensionality Reduction](#part3)
 
-4. [LAB (next meeting).](#part4) 
 
 
 
@@ -424,13 +423,6 @@ cityPointsText+scale_color_manual(values = c("orange",'lightgreen','red','magent
 
 ___________
 
-
-<a id='part4'></a>
-
-
-## LAB for THURSDAY: 
-
-Bring your Dashboard with the previous plots that are due next week!
 
 
 
