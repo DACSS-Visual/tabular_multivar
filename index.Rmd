@@ -11,7 +11,7 @@ _____
 
 _____
 
-1. [Introduction](#part1)
+1. [Comprehensive approach](#part1)
 
 2. [Averaging](#part2)
 
@@ -35,7 +35,7 @@ Let me start from the simplest.
 
 _____
 
-<a id='part1'></a>
+
 
 # Introduction
 
@@ -46,26 +46,32 @@ This time, I will use the [data about city safety](https://safecities.economist.
 rm(list = ls()) 
 
 # location of the data
-link="https://github.com/DACSS-Visual/tabular_multivar/raw/main/data/safeCitiesIndexAll.xlsx"
+link="https://github.com/DACSS-Visual/tabular_multivar/raw/main/data/safeCities_ecoUI.xlsx"
 
 # 'rio' can be used to import EXCEL files:
 library(rio)
-safe=import(link)
+safeALL=import(link)
 ```
 
 
-These several variables are telling us information about the safety levels of some cities in the world, and are related to **D**_igital_, **H**_ealth_, **I**_nfrastructure_, and **P**_ersonal_ dimensions. For each of these dimensions, there are measures of actions taken (**In**), and results obtained (**Out**). We have 49 variables.
+These several variables are telling us information about the safety levels of some cities in the world, and are related to **D**_igital_, **H**_ealth_, **I**_nfrastructure_, **P**_ersonal_, and **E**nvironmental dimensions. For each of these dimensions, there are measures of actions taken (**In**), and results obtained (**Out**). We have 61 indicators and the overall score for 60 cities.
 
+Let's get rid the last column (overall score):
 
+```{r}
+drop=c("Overall_Score")
+keep=setdiff(names(safeALL),drop)
+safe = safeALL[,keep]
+```
 [Go to table of contents.](#TOC)
 
 ________
 
-<a id='part11'></a>
+<a id='part1'></a>
 
-## Re introducing heatmap
+# The heatmap for a comprehensive approach
 
-Would making a plot of 49 variables  be a good idea? A **heatmap** is the usual answer.
+Would making a plot of 61 variables  be a good idea? A **heatmap** is the usual answer.
 
 Making a **heatmap** in _ggplot2_ requires a file in a particular _shape_, known as the **long format**.
 
@@ -86,7 +92,6 @@ head(safeL)
 
 ```
 
-The _melt function_ changed the direction of the data: the variables with the values were sent into rows, and the values are now to their right.
 
 Now, the _heatmap_ using this format:
 
@@ -101,44 +106,75 @@ heat1= base +  geom_tile(aes(fill = value))
 heat1
 ```
 
-
-
-
-
-
-As interesting emerges, let's also reorder rows (cities) and rows (indicators) by the median:
+Heatmap could be more informative if we reorder the axes. Let's  reorder rows (cities) and rows (indicators) by the median:
 
 ```{r, eval=TRUE}
-base= ggplot(data = safeL, aes(x = reorder(variable, 
-                                           value, median),
-                               y =reorder(city,
-                                          value, median)))
-heat2= base + geom_tile(aes(fill = value)) 
+base= ggplot(data = safeL)
+vars_heat=base + aes(x = reorder(variable, value, FUN=median),
+                               y =reorder(city,value, FUN=median))
+geoms_heat= vars_heat + geom_tile(aes(fill = value)) 
 
-heat2
+geoms_heat
 ```
 
-Here you can see what rows have higher or lower colors on what set of variables. You can add color pallette:
+Here you can see what rows have higher or lower colors on what set of variables. You can customize color with a gradient:
 
 ```{r, eval=TRUE}
 #inverse color -1
-heat2_recolor = heat2 +
-                scale_fill_gradient(low = 'grey30',
-                                    high = "grey90"
+geoms_heat = geoms_heat +
+                scale_fill_gradient(low = "white",
+                                    high = 'black'
                                     )
-heat2_recolor
+geoms_heat
 ```
 
 The column names need some work:
 
-```{r, eval=TRUE}
-heat2_axisGood= heat2_recolor + 
-                theme(axis.text.x = element_text(angle = 60, 
+```{r, eval=TRUE, fig.height=10}
+geoms_heat + 
+  labs(x="", y="") + 
+    theme(axis.text.x = element_text(angle = 60, 
                                          hjust = 1,
-                                         size = 6))
-
-heat2_axisGood
+                                         size = 8),
+                      axis.text.y = element_text(
+                                         size = 8)) 
+                
 ```
+For sure, it would be a good idea to rename the column names. Notice the heatplot is a good idea to detect, in this case, particular city clusters, to know if what cities are doing very good, or very bad.
+
+Would some data wrangling help the previous plot?
+
+```{r}
+safeL$type=ifelse(grepl("_In_",safeL$variable),'input','output')
+
+safeL$variable=sub("_In_|_Out_",'_',safeL$variable)
+
+# now we have:
+head(safeL)
+
+```
+Let's use this:
+
+```{r}
+base= ggplot(data = safeL)
+vars_heat=base + aes(y = reorder(variable, value, FUN=median),
+                               x =reorder(city, value, FUN=median))
+geoms_heat= vars_heat + geom_tile(aes(fill = value)) 
+
+geoms_heat_fct=geoms_heat + facet_wrap(~type, scales = "free_y", ncol = 1)
+geoms_heat_fct
+```
+```{r, fig.height=8}
+geoms_heat_fct + 
+  labs(x="", y="") + 
+    theme(axis.text.x = element_text(angle = 60, 
+                                         hjust = 1,
+                                         size = 6),
+                      axis.text.y = element_text(
+                                         size = 8)) 
+```
+
+Unless the city and variable names are clearly seen, ths may not be a good alternative. Iy may when we have fewer cities and variables.
 
 [Go to table of contents.](#TOC)
 
@@ -194,6 +230,10 @@ safe$Perso_I=apply(safe[,c(grep("P_In_", names(safe) ))],1,mean)%>%round(2)
 
 safe$Perso_O=apply(safe[,c(grep("P_Out_", names(safe) ))],1,mean)%>%round(2)
 
+safe$Env_I=apply(safe[,c(grep("E_In_", names(safe) ))],1,mean)%>%round(2)
+
+safe$Env_O=apply(safe[,c(grep("E_Out_", names(safe) ))],1,mean)%>%round(2)
+
 
 ```
 
@@ -208,7 +248,7 @@ head(safeINS)
 
 Let's rename the vars in this data set:
 ```{r, eval=TRUE}
-names(safeINS)=c("city",'DIGITAL','HEALTH','INFRASTR','PERSONAL')
+names(safeINS)=c("city",'DIGITAL','HEALTH','INFRASTR','PERSONAL', 'ENVIRONMENTAL')
 ```
 
 
@@ -327,97 +367,197 @@ ________
 
 # Dimensionality Reduction
 
-Finally, let me produce a plot using all the input variables, but reducing their dimensionality combining **clustering** and **multidimensional scaling**.
+Finally, let me produce a plot using all the input variables, but reducing their dimensionality introducing **factor analysis**, **clustering** and **multidimensional scaling**.
 
-
-You can use multidimensional scaling to represent **all the variables in a two dimensional plot**. This will create a **map** that will allow you to visualize "neighborhoods of similarity"  of the cases (cities). With clustering, you will use the variables (columns) to define homogeneous groups among the cases (rows).
-
-Let's see:
-
-a. Get all the **input** columns:
+Let's work  with all the **IN**put indicators:
 
 ```{r, eval=TRUE}
 allIN=safe[,c(grep("_In_", names(safe) ))]
 names(allIN)
 ```
 
-b. Add city names:
+Preserve the city names at the index:
 
 ```{r, eval=TRUE}
 rownames(allIN)=safe$city
+
+##
+head(allIN)
 ```
 
-c. Compute the distance among cases:
+## Plotting with Factor Analysis (EFA)
 
-```{r, eval=TRUE}
-dist_in_safe=dist(allIN) 
-```
+When we averaged by dimension as we did before for the _radar plot_, we assumed all the indicators weight the same. We can use Exploratory Factor Analysis (EFA) to uncover the weight of the dimensions, but also to validate what dimensions exist, and what variables really bring information in the study.
 
-d. Compute clusters
+### Previously...
 
-With some many data, it would be useful to divide the cities into clusters. Let's decice based on the dendogram.
+EFA uses the correlation matrix as input. Once we have it we can compute the KMO to assess the suitability if the variables to the multivariate process:
 
 ```{r}
-plot(hclust(dist_in_safe, method = 'ward.D2'),cex=0.6)
+## compute CMP
+CMP=polycor::hetcor(allIN)$correlations
+
+##CMP is suitable
+KMO_tested=psych::KMO(CMP) 
+KMO_tested$MSA
 ```
 
-We could ask for 5 clusters:
+The value above 0.6 seems acceptable, but still we should drop the  variables that individually bring noise to the analysis:
+```{r}
+keep_vars <- KMO_tested$MSAi >= 0.5
+allIN_kmo_ok <- allIN[, keep_vars]
+```
+
+With these set of variables, we can determine the appropriate number of dimensions:
+```{r}
+## Detect the dimensions
+CMP_kmo_ok=polycor::hetcor(allIN_kmo_ok)$correlations
+psych::fa.parallel(CMP_kmo_ok, fm = "pa", fa = "fa",plot = F,n.obs = nrow(allIN_kmo_ok))
+```
+
+We know that **THREE** will get the best of the remaining informative variables, so we compute the EFA:
+
+```{r}
+#4. Compute the new dimensions
+res_fa <- psych::fa(CMP_kmo_ok, n.obs = nrow(allIN_kmo_ok),
+                    nfactors = 3, rotate = "varimax", fm = "pa")
+```
+
+From the **res_fa** object we can first determine how  dimensions may be named, for that you read the **factor loadings**:
+```{r}
+print(res_fa$loadings)
+```
+
+Each of the three summarizing factors have a higher or lower affinity to a particular variable (based on the values seen above). We can arguably propose this:
+
+## Factor Summary Table
+
+| Factor | Proposed Name | Key Indicators (Loadings ≥ 0.50) | Conceptual Definition |
+|--------|--------------|----------------------------------|----------------------|
+| **PA1** | Foundational Public Services & Social Governance | • Access to Safe & Quality Food (0.781)<br>• Expenditure on Social Security (0.711)<br>• Capacity of Judicial System (0.690)<br>• Water Infrastructure (0.645)<br>• Universal Healthcare Coverage (0.637)<br>• Pedestrian Friendliness (0.597)<br>• Privacy Policy (0.575) | Baseline institutional capacity to deliver essential welfare services, basic infrastructure, and core governance functions that support everyday quality of life. |
+| **PA2** | Healthcare System Performance | • Quality of Health Services (0.915)<br>• Access to Healthcare (0.769)<br>• Health Infrastructure (0.617) | Effectiveness and accessibility of clinical care delivery, reflecting the operational performance of the health system distinct from policy commitments. |
+| **PA3** | Crisis Preparedness & Environmental Resilience | • Waste Management (0.701)<br>• Pandemic Preparedness (0.692)<br>• Hazard Monitoring (0.605)<br>• Disaster Management & Business Continuity (0.586)<br>• Cybersecurity Preparedness (0.548) | Forward-looking systemic capacities to anticipate, absorb, and recover from acute shocks and chronic stresses across environmental, health, and digital domains. |
+
+
+Given we have 'names' for the factors, we can pay attention to the value values of the variables for each city. For that, we retrieve the scores:
+
+```{r}
+city_scores <- psych::factor.scores(allIN_kmo_ok, res_fa)$scores|>as.data.frame()
+head(city_scores)
+```
+
+These scores are standardized values that we can normalize (0-100) for easier reading of the plots:
+```{r}
+# normalizinf
+library(BBmisc)
+efa_scores_norm=normalize(city_scores, 
+                       method = "range", 
+                       margin=2, # by column
+                       range = c(0, 100))
+
+# new  vars
+
+city_scores$governance=efa_scores_norm[,1]
+city_scores$health_system=efa_scores_norm[,2]
+city_scores$preparedness=efa_scores_norm[,3]
+
+city_scores[,4:6]
+```
+
+After so much stats, we cna produce a simple plot like a lollipop. Let's turn those columns into a long shape, and plot:
+
+```{r, fig.height=8}
+
+##reshaping
+city_scores_wide=city_scores[,4:6]
+city_scores_wide$city=rownames(city_scores_wide)
+city_scores_long=melt(city_scores_wide,id.vars = 'city')
+
+##plotting
+baseefa=ggplot(data=city_scores_long) + theme_classic() 
+
+varsefa=baseefa + aes(x=reorder(city, value,median),y=value)
+
+geomsefa= varsefa + geom_point(shape=5, aes(color=value>75))+
+                    geom_segment(aes(x=city,y=0,yend = value,xend = city),
+                                 color='grey70',linewidth=0.2)
+geomsefa +  facet_grid(~variable) + coord_flip() +
+            theme(axis.text.y = element_text(size = 10)) +
+            labs(title = "Safecity of Cities",
+                 subtitle = "A 3-dimensional approach",
+                 x="", y='Scores', color="Above 75 points")
+```
+
+
+
+## Plotting with MDS and CLUSTERING
+
+
+You can use multidimensional scaling (MDS) to represent **all the variables in a two dimensional plot**. This will create a **map** that will allow you to visualize "neighborhoods of similarity"  of the cases (cities). With clustering, you will use the variables (columns) to define homogeneous groups among the cases (rows).
+
+
+MDS requires as input the **distance matrix** among cases, notice we will use the **city_scores_wide** data frame, which was built without the non-informative variables:
+
+```{r, eval=TRUE}
+library(cluster)
+city_scores_wide$city=NULL
+dist_in_safe=cluster::daisy(city_scores_wide[,c('governance','health_system','preparedness')],
+                            metric = 'gower') 
+```
+
+Using the distances, we can get the coordinates:
+```{r, eval=TRUE}
+theMap=cmdscale(dist_in_safe,k = 2)
+city_scores_wide$dim1=theMap[,1]
+city_scores_wide$dim2=theMap[,2]
+
+##
+head(city_scores_wide[,c('dim1','dim2')])
+```
+
+Using those values, see the map:
+
+```{r, fig.height=8}
+library(ggrepel)
+city_scores_wide$city=row.names(city_scores_wide)
+base_mds=ggplot(city_scores_wide) + theme_light()
+vars_mds=base_mds + aes(x=dim1,y=dim2,label=city)
+geoms_mds=vars_mds + geom_text_repel(size=4,min.segment.length = 0) 
+
+# 
+geoms_mds
+```
+
+**Clustering** comes in handy to improve the previous viz. Each city will be grouped by affinity (similarity). That grouping depends on the technique used.
+
+Let's compare the hierarchical clustering technique (HC), a technique that clusters every row (city), versus the density based clustering (DB) which may detect outliers that will not be clustered.
+
+### Using HC  
+
+HC requires you know how many clusters to detect. That analysis is beyond the session (and course). Let's just assume we need 5 clusters:
 
 ```{r}
 library(factoextra)
 
-res.agnes<- hcut(dist_in_safe, k = 5,hc_func='agnes',hc_method = "ward.D")
+res.hc<- hcut(dist_in_safe, k = 5)
 
-allIN$agnes=as.factor(res.agnes$cluster)
+## Add them to data frame
+city_scores_wide$hc=as.factor(res.hc$cluster)
 ```
 
-
-
-d. Get map using multidimensional scaling:
-```{r, eval=TRUE}
-theMap=cmdscale(dist_in_safe,k = 2)
-head(theMap,10)
-```
-
-Add them to data frame
-```{r, eval=TRUE}
-#add to dataframe
-allIN$dim1=theMap[,1]
-allIN$dim2=theMap[,2]
-```
-
-Let plot the countries using dim1 and dim2 as coordinates:
+Let redo the previous plot:
 
 ```{r, eval=TRUE}
+base_mds_hc=ggplot(city_scores_wide) + theme_light()
+vars_mds_hc=base_mds_hc + aes(x=dim1,y=dim2,label=city, color=hc)
+geoms_mds_hc=vars_mds_hc + geom_text_repel(size=4,max.overlaps = 20, min.segment.length = 0) 
 
-library(ggplot2)
-base=ggplot(allIN,aes(x=dim1,y=dim2,
-                       color=agnes,
-                       label = rownames(allIN)))
-cityPoints=base + geom_point() 
- 
-cityPoints + geom_text()
-
-```
-
-Let's use *ggrepel* to improve labelling:
-
-```{r, eval=TRUE}
-library(ggrepel)
-
-cityPointsText=cityPoints + theme_void() +
-               geom_text_repel(size=1.5,
-                               max.overlaps = 20) 
-
-cityPointsText
+# 
+geoms_mds_hc
 
 ```
 
 
-Would you like your own colors? ...becareful!
-```{r, eval=TRUE}
-cityPointsText+scale_color_manual(values = c("orange",'lightgreen','red','magenta','grey50'))
-```
 
 [Go to table of contents.](#TOC)
 
